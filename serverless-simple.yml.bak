@@ -1,0 +1,68 @@
+service: loan-csv-processor
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: python3.9
+  region: ap-south-1
+  stage: dev
+
+  environment:
+    DB_HOST: loan-eligibility-db-v2.cd04gweugz24.ap-south-1.rds.amazonaws.com
+    DB_PORT: 5432
+    DB_NAME: loan_eligibility
+    DB_USER: postgres
+    DB_PASSWORD: ${env:DB_PASSWORD}
+    CSV_BUCKET: loan-csv-uploads-ak120-1733596800-${self:provider.stage}
+
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - s3:GetObject
+            - s3:PutObject
+          Resource: "arn:aws:s3:::loan-csv-uploads-ak120-${self:provider.stage}/*"
+        - Effect: Allow
+          Action:
+            - s3:ListBucket
+          Resource: "arn:aws:s3:::loan-csv-uploads-ak120-${self:provider.stage}"
+
+functions:
+  processCSV:
+    handler: lambda/process_csv.lambda_handler
+    timeout: 300
+    memorySize: 512
+    events:
+      - s3:
+          bucket: loan-csv-uploads-ak120-${self:provider.stage}
+          event: s3:ObjectCreated:*
+          rules:
+            - suffix: .csv
+
+plugins:
+  - serverless-python-requirements
+
+custom:
+  pythonRequirements:
+    dockerizePip: true
+    layer: true
+
+resources:
+  Resources:
+    CSVUploadBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: loan-csv-uploads-ak120-${self:provider.stage}
+        CorsConfiguration:
+          CorsRules:
+            - AllowedHeaders:
+                - "*"
+              AllowedMethods:
+                - GET
+                - PUT
+                - POST
+              AllowedOrigins:
+                - "*"
+              MaxAge: 3000

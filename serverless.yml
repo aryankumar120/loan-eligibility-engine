@@ -1,0 +1,161 @@
+service: loan-eligibility-engine
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: python3.9
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+
+  environment:
+    DB_HOST: !GetAtt LoanEligibilityDB.Endpoint.Address
+    DB_PORT: !GetAtt LoanEligibilityDB.Endpoint.Port
+    DB_NAME: loan_eligibility
+    DB_USER: ${self:custom.dbUsername}
+    DB_PASSWORD: ${self:custom.dbPassword}
+    CSV_BUCKET: !Ref CSVUploadBucket
+    N8N_WEBHOOK_URL: ${self:custom.n8nWebhookUrl}
+
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - s3:GetObject
+            - s3:PutObject
+          Resource: !Sub "${CSVUploadBucket.Arn}/*"
+        - Effect: Allow
+          Action:
+            - ses:SendEmail
+            - ses:SendRawEmail
+          Resource: "*"
+        - Effect: Allow
+          Action:
+            - rds:DescribeDBInstances
+          Resource: "*"
+
+custom:
+  dbUsername: admin
+  dbPassword: ${env:DB_PASSWORD, 'ChangeMe123!'}
+  n8nWebhookUrl: ${env:N8N_WEBHOOK_URL, 'http://localhost:5678/webhook/user-matching'}
+
+functions:
+  csvProcessor:
+    handler: lambda/csv_processor.handler
+    timeout: 900
+    memorySize: 1024
+
+  getUploadUrl:
+    handler: lambda/get_upload_url.handler
+    timeout: 30
+    events:
+      - httpApi:
+          path: /upload-url
+          method: get
+
+resources:
+  Resources:
+    # S3 Bucket for CSV uploads
+    CSVUploadBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:service}-csv-uploads-${self:provider.stage}
+        CorsConfiguration:
+          CorsRules:
+            - AllowedOrigins:
+                - '*'
+              AllowedMethods:
+                - GET
+                - PUT
+                - POST
+              AllowedHeaders:
+                - '*'
+        LifecycleConfiguration:
+          Rules:
+            - Id: DeleteOldCSVs
+              Status: Enabled
+              ExpirationInDays: 7
+
+    # RDS PostgreSQL Database
+    LoanEligibilityDB:
+      Type: AWS::RDS::DBInstance
+      Properties:
+        DBInstanceIdentifier: ${self:service}-db-${self:provider.stage}
+        DBName: loan_eligibility
+        Engine: postgres
+        EngineVersion: '15.4'
+        DBInstanceClass: db.t3.micro
+        AllocatedStorage: 20
+        StorageType: gp2
+        MasterUsername: ${self:custom.dbUsername}
+        MasterUserPassword: ${self:custom.dbPassword}
+        VPCSecurityGroups:
+          - !GetAtt LoanEligibilityDBSecurityGroup.GroupId
+        PubliclyAccessible: true
+        BackupRetentionPeriod: 7
+        DeleteAutomatedBackups: true
+        DeletionProtection: false
+
+    # DB Security Group
+    LoanEligibilityDBSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Security group for Loan Eligibility RDS
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 5432
+            ToPort: 5432
+            CidrIp: 0.0.0.0/0
+        SecurityGroupEgress:
+          - IpProtocol: -1
+            CidrIp: 0.0.0.0/0
+
+    # SES Email Identity (you'll need to verify this)
+    SESEmailIdentity:
+      Type: AWS::SES::EmailIdentity
+      Properties:
+        EmailIdentity: ${env:SES_FROM_EMAIL, 'noreply@example.com'}
+
+  Outputs:
+    CSVUploadBucketName:
+      Description: S3 Bucket for CSV uploads
+      Value: !Ref CSVUploadBucket
+      Export:
+        Name: ${self:service}-csv-bucket-${self:provider.stage}
+
+    DatabaseEndpoint:
+      Description: RDS Database Endpoint
+      Value: !GetAtt LoanEligibilityDB.Endpoint.Address
+      Export:
+        Name: ${self:service}-db-endpoint-${self:provider.stage}
+
+    DatabasePort:
+      Description: RDS Database Port
+      Value: !GetAtt LoanEligibilityDB.Endpoint.Port
+      Export:
+        Name: ${self:service}-db-port-${self:provider.stage}
+
+    UploadUrlEndpoint:
+      Description: API endpoint for getting S3 upload URL
+      Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/upload-url"
+      Export:
+        Name: ${self:service}-upload-url-${self:provider.stage}
+
+
+package:
+  patterns:
+    - '!node_modules/**'
+    - '!venv/**'
+    - '!.git/**'
+    - '!.env'
+    - '!docs/**'
+    - '!ui/**'
+    - '!database/**'
+    - '!.serverless/**'
+    - '!README.md'
+    - '!package.json'
+    - '!requirements.txt'
+    - '!docker-compose.yml'
+    - 'lambda/*.py'
+    - 'lambda/layer/python/**'

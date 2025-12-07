@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n-loan-eligibility
+    restart: always
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=loanengine2024
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      - WEBHOOK_URL=http://localhost:5678/
+      - GENERIC_TIMEZONE=Asia/Kolkata
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./n8n-workflows:/workflows:ro
+    networks:
+      - loan-eligibility-network
+
+  # PostgreSQL database (optional - only if running DB locally for testing)
+  # Uncomment the section below if you want to run a local PostgreSQL instead of AWS RDS
+  # postgres:
+  #   image: postgres:14-alpine
+  #   container_name: postgres-loan-eligibility
+  #   restart: always
+  #   environment:
+  #     - POSTGRES_USER=postgres
+  #     - POSTGRES_PASSWORD=SimplePass123
+  #     - POSTGRES_DB=loan_eligibility
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #     - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+  #   networks:
+  #     - loan-eligibility-network
+
+volumes:
+  n8n_data:
+    driver: local
+  # postgres_data:
+  #   driver: local
+
+networks:
+  loan-eligibility-network:
+    driver: bridge

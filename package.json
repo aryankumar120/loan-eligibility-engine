@@ -1,0 +1,25 @@
+{
+  "name": "loan-eligibility-engine",
+  "version": "1.0.0",
+  "description": "Automated loan eligibility matching engine with n8n workflows",
+  "main": "index.js",
+  "scripts": {
+    "deploy": "serverless deploy",
+    "remove": "serverless remove",
+    "logs": "serverless logs -f csvProcessor -t",
+    "info": "serverless info"
+  },
+  "keywords": [
+    "loan",
+    "eligibility",
+    "n8n",
+    "aws",
+    "serverless"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "serverless": "^3.38.0",
+    "serverless-python-requirements": "^6.1.2"
+  }
+}

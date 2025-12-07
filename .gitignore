@@ -1,0 +1,13 @@
+.env
+.aws/
+.serverless/
+__pycache__/
+*.pyc
+node_modules/
+.vscode/
+.DS_Store
+*.log
+deployment.log
+cors-config.json
+test-users.csv
+.serverless_plugins/

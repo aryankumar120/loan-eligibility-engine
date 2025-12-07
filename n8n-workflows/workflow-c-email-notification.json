@@ -1,0 +1,174 @@
+{
+  "name": "Workflow C: Email Notifications",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Manual Trigger (Test)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [250, 400],
+      "notes": "For demo. In production: Schedule daily or trigger from Workflow B"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  m.match_id,\n  m.user_id,\n  u.name as user_name,\n  u.email as user_email,\n  m.product_id,\n  lp.product_name,\n  lp.lender_name,\n  lp.interest_rate,\n  lp.max_loan_amount,\n  m.match_score\nFROM matches m\nJOIN users u ON m.user_id = u.user_id\nJOIN loan_products lp ON m.product_id = lp.product_id\nWHERE m.notification_sent = FALSE\nLIMIT 10;",
+        "options": {}
+      },
+      "name": "Get Pending Notifications",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [450, 400],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "email_subject",
+              "name": "subject",
+              "value": "=Great News! You're Pre-Qualified for {{ $json.product_name }}",
+              "type": "string"
+            },
+            {
+              "id": "email_body",
+              "name": "body",
+              "value": "=Hi {{ $json.user_name }},\n\nGreat news! Based on your profile, you've been matched with:\n\n📋 Loan Product: {{ $json.product_name }}\n🏦 Lender: {{ $json.lender_name }}\n💰 Interest Rate: {{ $json.interest_rate }}%\n💵 Maximum Amount: ${{ $json.max_loan_amount }}\n⭐ Match Score: {{ $json.match_score }}%\n\nThis is a personalized match based on your financial profile. To proceed with your application, please visit our portal.\n\nBest regards,\nLoan Matching Team\n\n---\nThis is an automated notification from our loan matching system.",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "name": "Generate Email Content",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [650, 400]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "demo_note",
+              "name": "email_sent",
+              "value": "=Email would be sent to: {{ $json.user_email }}\nSubject: {{ $json.subject }}\n\nIn production, AWS SES would send the email here.\nFor demo purposes, we're skipping actual email delivery.",
+              "type": "string"
+            },
+            {
+              "id": "success",
+              "name": "notification_success",
+              "value": "true",
+              "type": "boolean"
+            }
+          ]
+        }
+      },
+      "name": "Email Sent (Demo Mode)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [850, 400],
+      "notes": "In production: Replace with AWS SES Send Email node"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=UPDATE matches \nSET notification_sent = TRUE \nWHERE match_id = {{ $json.match_id }};",
+        "options": {}
+      },
+      "name": "Mark as Sent",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1050, 400],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) as total_sent FROM matches WHERE notification_sent = TRUE;",
+        "options": {}
+      },
+      "name": "Count Total Sent",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1250, 400],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Manual Trigger (Test)": {
+      "main": [
+        [
+          {
+            "node": "Get Pending Notifications",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Pending Notifications": {
+      "main": [
+        [
+          {
+            "node": "Generate Email Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Email Content": {
+      "main": [
+        [
+          {
+            "node": "Email Sent (Demo Mode)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Sent (Demo Mode)": {
+      "main": [
+        [
+          {
+            "node": "Mark as Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark as Sent": {
+      "main": [
+        [
+          {
+            "node": "Count Total Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {},
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0
+}

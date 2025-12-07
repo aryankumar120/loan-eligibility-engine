@@ -1,0 +1,108 @@
+{
+  "name": "Workflow A: Loan Product Discovery",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Manual Trigger (Test Mode)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [250, 400],
+      "notes": "For demo. In production, use Schedule Trigger (2 AM daily)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate loan products for database insertion\nconst products = [\n  {\n    lender_name: \"Quick Loans Inc\",\n    product_name: \"Fast Personal Loan\",\n    interest_rate: 8.5,\n    min_income: 3000,\n    min_credit_score: 650,\n    max_loan_amount: 50000,\n    min_age: 21,\n    max_age: 65,\n    eligibility_criteria: \"employed\"\n  },\n  {\n    lender_name: \"Premium Finance\",\n    product_name: \"Elite Personal Loan\",\n    interest_rate: 6.99,\n    min_income: 5000,\n    min_credit_score: 720,\n    max_loan_amount: 100000,\n    min_age: 25,\n    max_age: 60,\n    eligibility_criteria: \"employed,excellent_credit\"\n  },\n  {\n    lender_name: \"Budget Lenders\",\n    product_name: \"Starter Loan\",\n    interest_rate: 12.5,\n    min_income: 2000,\n    min_credit_score: 550,\n    max_loan_amount: 25000,\n    min_age: 18,\n    max_age: 70,\n    eligibility_criteria: \"any\"\n  },\n  {\n    lender_name: \"Green Finance Co\",\n    product_name: \"Eco-Friendly Loan\",\n    interest_rate: 7.25,\n    min_income: 4000,\n    min_credit_score: 680,\n    max_loan_amount: 75000,\n    min_age: 21,\n    max_age: 65,\n    eligibility_criteria: \"employed\"\n  },\n  {\n    lender_name: \"Senior Trust Bank\",\n    product_name: \"Golden Years Loan\",\n    interest_rate: 9.5,\n    min_income: 3500,\n    min_credit_score: 600,\n    max_loan_amount: 60000,\n    min_age: 50,\n    max_age: 75,\n    eligibility_criteria: \"retired,employed\"\n  }\n];\n\nconsole.log(`✅ Generated ${products.length} loan products for insertion`);\n\nreturn products.map(p => ({ json: p }));"
+      },
+      "name": "Generate Loan Products",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 400],
+      "notes": "Creates sample loan products. In production, this would scrape lender websites or call APIs"
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "loan_products",
+          "mode": "list"
+        },
+        "dataMode": "autoMapInputData",
+        "options": {
+          "skipOnConflict": true
+        }
+      },
+      "name": "Store in Database",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [650, 400],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) as total_products FROM loan_products;",
+        "options": {}
+      },
+      "name": "Count Products",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [850, 400],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Manual Trigger (Test Mode)": {
+      "main": [
+        [
+          {
+            "node": "Generate Loan Products",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Loan Products": {
+      "main": [
+        [
+          {
+            "node": "Store in Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store in Database": {
+      "main": [
+        [
+          {
+            "node": "Count Products",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {},
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0
+}

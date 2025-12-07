@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Loan Eligibility - CSV Upload</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            max-width: 500px;
+            width: 100%;
+        }
+        h1 { color: #333; margin-bottom: 10px; }
+        .subtitle { color: #666; margin-bottom: 30px; font-size: 14px; }
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 40px 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+        }
+        .upload-area:hover { border-color: #667eea; background-color: #f8f9ff; }
+        input[type="file"] { display: none; }
+        button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        .status { text-align: center; padding: 15px; border-radius: 6px; margin-top: 20px; display: none; }
+        .status.show { display: block; }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .instructions {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Loan Eligibility Engine</h1>
+        <p class="subtitle">Upload user data CSV</p>
+        
+        <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+            <p style="font-size: 48px;">📁</p>
+            <p><strong>Click to browse</strong> or drag CSV file</p>
+            <input type="file" id="fileInput" accept=".csv">
+        </div>
+        
+        <div id="fileInfo" style="display:none; background: #f5f7fa; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+            <div id="fileName" style="font-weight: bold;"></div>
+            <div id="fileSize" style="color: #666; font-size: 14px; margin-top: 5px;"></div>
+        </div>
+        
+        <button id="uploadButton" disabled>Upload CSV</button>
+        
+        <div class="status" id="status"></div>
+        
+        <div class="instructions">
+            <strong>CSV Format:</strong><br>
+            Columns: user_id, name, email, monthly_income, credit_score, employment_status, age
+        </div>
+    </div>
+    
+    <script>
+        // API Gateway endpoint - will be set after deployment
+        const API_ENDPOINT = localStorage.getItem('apiEndpoint') || prompt('Enter API Gateway endpoint URL from deployment:');
+        if (API_ENDPOINT && !localStorage.getItem('apiEndpoint')) {
+            localStorage.setItem('apiEndpoint', API_ENDPOINT);
+        }
+
+        let selectedFile = null;
+
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file || !file.name.endsWith('.csv')) {
+                alert('Please select a CSV file');
+                return;
+            }
+            selectedFile = file;
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('fileSize').textContent = (file.size / 1024).toFixed(2) + ' KB';
+            document.getElementById('fileInfo').style.display = 'block';
+            document.getElementById('uploadButton').disabled = false;
+        });
+
+        document.getElementById('uploadButton').addEventListener('click', async () => {
+            if (!selectedFile) return;
+
+            const status = document.getElementById('status');
+            const button = document.getElementById('uploadButton');
+
+            button.disabled = true;
+            button.textContent = 'Uploading...';
+            status.className = 'status show';
+            status.style.background = '#d1ecf1';
+            status.style.color = '#0c5460';
+            status.textContent = '⏳ Getting upload URL...';
+
+            try {
+                // Get presigned URL from API
+                const urlResponse = await fetch(`${API_ENDPOINT}/upload-url?filename=${encodeURIComponent(selectedFile.name)}`);
+                if (!urlResponse.ok) throw new Error('Failed to get upload URL');
+
+                const urlData = await urlResponse.json();
+
+                status.textContent = '⏳ Uploading file to S3...';
+
+                // Upload file using presigned POST
+                const formData = new FormData();
+                Object.entries(urlData.fields).forEach(([key, value]) => {
+                    formData.append(key, value);
+                });
+                formData.append('file', selectedFile);
+
+                const uploadResponse = await fetch(urlData.upload_url, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!uploadResponse.ok) throw new Error('Upload failed');
+
+                status.className = 'status show success';
+                status.textContent = '✅ File uploaded successfully! Lambda will process it automatically.';
+                button.textContent = 'Upload Another CSV';
+                button.disabled = false;
+
+                // Reset form
+                setTimeout(() => {
+                    document.getElementById('fileInfo').style.display = 'none';
+                    document.getElementById('fileInput').value = '';
+                    selectedFile = null;
+                    button.disabled = true;
+                    button.textContent = 'Upload CSV';
+                }, 3000);
+
+            } catch (error) {
+                status.className = 'status show error';
+                status.textContent = '❌ Upload failed: ' + error.message;
+                button.disabled = false;
+                button.textContent = 'Retry Upload';
+                console.error('Upload error:', error);
+            }
+        });
+    </script>
+</body>
+</html>
