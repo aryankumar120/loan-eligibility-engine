@@ -326,6 +326,36 @@ aws logs tail /aws/lambda/loan-csv-handler-dev-processCSV --region ap-south-1 --
 4. Click "Execute Workflow"
 5. Check "total_sent" count
 
+### 3. Verify Database
+
+```bash
+# Connect to database (requires psql or DB client)
+# Use credentials from .env file
+
+# Check users
+SELECT COUNT(*) FROM users;
+
+# Check products
+SELECT COUNT(*) FROM loan_products;
+
+# Check matches
+SELECT COUNT(*) FROM matches;
+
+# View recent matches with details
+SELECT
+  u.name,
+  u.email,
+  lp.product_name,
+  lp.lender_name,
+  m.match_score
+FROM matches m
+JOIN users u ON m.user_id = u.user_id
+JOIN loan_products lp ON m.product_id = lp.product_id
+ORDER BY m.created_at DESC
+LIMIT 10;
+```
+
+---
 
 ## Project Structure
 
